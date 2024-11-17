@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\PJU;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\PJUImport;
 
 class PJUController extends Controller
 {
@@ -21,7 +23,7 @@ class PJUController extends Controller
         if (!$pjus) {
             return response()->json(['message' => 'Data not found'], 404);
         }
-        return response()->json($pjus, 200);
+        return response()->json($pjus, 201);
     }
 
     // Create new data
@@ -39,7 +41,7 @@ class PJUController extends Controller
             return response()->json(['message' => 'Data not found'], 404);
         }
         $pjus->update($request->all());
-        return response()->json($pjus, 200);
+        return response()->json($pjus, 201);
     }
 
     // Delete data
@@ -50,6 +52,23 @@ class PJUController extends Controller
             return response()->json(['message' => 'Data not found'], 404);
         }
         $pjus->delete();
-        return response()->json(['message' => 'Data deleted successfully'], 200);
+        return response()->json(['message' => 'Data deleted successfully'], 201);
+    }
+    public function listNoTiangBaru()
+    {
+        $data = PJU::select('id_pju', 'No_Tiang_baru')->get();
+        return response()->json(["datas"=> $data], 201);
+    }
+
+    public function importPju(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv',
+        ]);
+
+        Excel::import(new PjuImport, $request->file('file'));
+
+        return response()->json(['sukses menambahkan data'], 201);
     }
 }
+

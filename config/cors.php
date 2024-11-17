@@ -2,33 +2,19 @@
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | Cross-Origin Resource Sharing (CORS) Configuration
-    |--------------------------------------------------------------------------
-    |
-    | Here you may configure your settings for cross-origin resource sharing
-    | or "CORS". This determines what cross-origin operations may execute
-    | in web browsers. You are free to adjust these settings as needed.
-    |
-    | To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
-    |
-    */
+    'paths' => ['api/*', 'sanctum/csrf-cookie'], // Path yang diizinkan CORS, biasanya cukup dengan 'api/*' untuk semua endpoint API.
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
+    'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE'], // Mengizinkan semua metode HTTP (GET, POST, PUT, DELETE, dll.) atau tentukan metode yang diperlukan.
 
-    'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-
-    'allowed_origins' => ['http://localhost:3001'],
+    'allowed_origins' => ['http://localhost:3001'], // Asal (origin) yang diizinkan, sesuaikan dengan domain frontend Anda.
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['Content-Type', 'X-Requested-With', 'Authorization'],
+    'allowed_headers' => ['*'], // Mengizinkan semua header atau bisa tentukan seperti ['Content-Type', 'X-Requested-With', 'Authorization']
 
-    'exposed_headers' => [],
+    'exposed_headers' => [], // Header yang akan diekspos ke frontend
 
-    'max_age' => 0,
+    'max_age' => 0, // Waktu cache untuk preflight requests
 
-    'supports_credentials' => true,
-
+    'supports_credentials' => true, // Set ke true jika Anda menggunakan cookies atau session (misalnya dengan Sanctum)
 ];

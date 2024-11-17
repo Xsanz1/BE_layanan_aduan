@@ -14,14 +14,18 @@ return new class extends Migration
     public function up()
     {
         Schema::create('pengaduan', function (Blueprint $table) {
-            $table->id(); // ID otomatis untuk setiap pengaduan
+            $table->id('id_pengaduan'); // ID otomatis untuk setiap pengaduan
             $table->string('pelapor'); // Nama pelapor
             $table->string('nomor_pengaduan')->unique(); // Nomor pengaduan yang unik
-            $table->text('masalah'); // Deskripsi masalah
+            $table->enum('kondisi_masalah', ['Tiang', 'Panel', '1 Line']);
+            $table->string('keterangan_masalah');
             $table->unsignedBigInteger('id_tiang'); // ID Tiang
             $table->unsignedBigInteger('id_panel'); // ID Panel
             $table->time('jam_pengaduan'); // Jam pengaduan
             $table->date('tanggal_pengaduan'); // Tanggal pengaduan
+            $table->time('jam_penyelesaian')->nullable();
+            $table->date('tanggal_penyelesaian')->nullable();
+            $table->string('durasi_penyelesaian')->nullable();
             $table->string('lokasi'); // Lokasi pengaduan
             $table->string('foto') -> nullable(); // Path foto pengaduan, nullable jika tidak ada
             $table->enum('status', ['Pending', 'Selesai', 'Proses']); // Status pengaduan

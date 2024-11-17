@@ -13,7 +13,6 @@ class UserSeeder extends Seeder
         // Superadmin
         User::create([
             'name' => 'Super Admin',
-            'email' => 'superadmin@example.com',
             'username' => 'superadmin',
             'password' => Hash::make('password'), // Pastikan untuk mengganti password ini dalam produksi
             'role' => 'superadmin',
@@ -23,7 +22,6 @@ class UserSeeder extends Seeder
         // Admin
         User::create([
             'name' => 'Admin User',
-            'email' => 'admin@example.com',
             'username' => 'adminuser',
             'password' => Hash::make('password'), // Ganti password ini juga
             'role' => 'admin',
@@ -33,7 +31,6 @@ class UserSeeder extends Seeder
         // Dishub
         User::create([
             'name' => 'Dishub User',
-            'email' => 'dishub@example.com',
             'username' => 'dishubuser',
             'password' => Hash::make('password'), // Ganti password ini juga
             'role' => 'dishub',

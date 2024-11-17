@@ -13,7 +13,20 @@ class PanelController extends Controller
      */
     public function index()
     {
-        $panels = Panel::all();
+        $panels = Panel::all()->map(function ($panel) {
+            // Konversi model Panel menjadi array
+            $panelArray = $panel->toArray();
+
+            // Ubah setiap nilai 0 menjadi '-'
+            foreach ($panelArray as $key => $value) {
+                if ($value === 0) {
+                    $panelArray[$key] = '-';
+                }
+            }
+
+            return $panelArray;
+        });
+
         return response()->json($panels);
     }
 
@@ -63,5 +76,10 @@ class PanelController extends Controller
     public function destroy(string $id)
     {
         //
+    }
+    public function listNoApp()
+    {
+        $data = Panel::select('id_panel', 'No_App')->get();
+        return response()->json($data, 201);
     }
 }

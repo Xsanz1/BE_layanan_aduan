@@ -37,6 +37,7 @@ class AuthController extends Controller
             'message' => 'Login berhasil',
             'access_token' => $token,
             'token_type' => 'Bearer',
+            'role' => $user->role, // Kirim role ke frontend
         ]);
     }
 
@@ -51,58 +52,53 @@ class AuthController extends Controller
         ]);
     }
 
-    public function getProfile()
+    public function profile(Request $request)
     {
-        $user = Auth::user();
+        $user = $request->user();
 
         return response()->json([
-            'name' => $user->name,
-            'email' => $user->email,
-            'username' => $user->username,
-            'role' => $user->role,
-            'foto' => $user->foto, // Assume this is the file path to the user's profile photo
-        ], 200);
+            'status' => 'success',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'username' => $user->username,
+                'foto' => $user->foto,
+                'created_at' => $user->created_at,
+                'updated_at' => $user->updated_at,
+            ],
+        ], 201);
     }
 
     public function updateProfile(Request $request)
     {
-        $user = Auth::user();
+        $user = $request->user();
 
-        if (!$user) {
-            return response()->json(['error' => 'User not found.'], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'username' => 'required|string|unique:users,username,' . $user->id,
-            'role' => 'sometimes|string',
-            'foto' => 'nullable|image|mimes:jpg,png,jpeg|max:2048',
+            'username' => 'required|string|max:255|unique:users,username,' . $user->id,
+            'foto' => 'nullable|image|max:2048',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        $user->name = $request->input('name');
+        $user->username = $request->input('username');
 
-        // Handle file upload if a new file is provided
+        // Handle photo upload
         if ($request->hasFile('foto')) {
-            if ($user->foto && file_exists(public_path('storage/' . $user->foto))) {
-                unlink(public_path('storage/' . $user->foto));
-            }
-            $file = $request->file('foto');
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $file->move(public_path('storage/uploads'), $fileName);
-            $user->foto = 'uploads/' . $fileName;
+            $imagePath = $request->file('foto')->store('public/profile');
+            $user->foto = basename($imagePath);
         }
 
-        $user->name = $request->name;
-        $user->email = $request->email;
-        $user->username = $request->username;
-        $user->role = $request->role ?? $user->role;
+        $user->save();
 
         return response()->json([
-            'message' => 'Profile updated successfully.',
-            'user' => $user,
-        ], 200);
+            'status' => 'success',
+            'message' => 'Profile updated successfully',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'username' => $user->username,
+                'foto' => $user->foto,
+            ],
+        ], 201);
     }
 }

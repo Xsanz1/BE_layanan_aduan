@@ -5,6 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Pengaduan;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use App\Exports\PengaduanExport;
+use App\Imports\PengaduanImport;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\Log;
 
 class PengaduanController extends Controller
 {
@@ -20,7 +24,8 @@ class PengaduanController extends Controller
     {
         $request->validate([
             'pelapor' => 'required|string|max:255',
-            'masalah' => 'required|string',
+            'kondisi_masalah' => 'required|string', // Enum validation
+            'keterangan_masalah' => 'required|string',
             'id_tiang' => 'required|integer',
             'id_panel' => 'required|integer',
             'lokasi' => 'required|string',
@@ -32,13 +37,16 @@ class PengaduanController extends Controller
         $timezone = 'Asia/Jakarta';
         $jamPengaduan = Carbon::now($timezone)->format('H:i'); // 24-hour format
         $tanggalPengaduan = Carbon::now($timezone)->format('Y-m-d');
+        $yearMonthPart = Carbon::now($timezone)->format('Ymd'); // Format YYYYMM
 
-        // Generate nomor_pengaduan: YYYYMMDD-RANDOMNUMBER
-        $datePart = Carbon::now($timezone)->format('Ymd');
-        $randomNumber = random_int(1000, 9999); // Generates a random 4-digit number
-        $nomorPengaduan = $datePart . $randomNumber;
+        // Count existing pengaduan for the current month and set sequential number
+        $countThisMonth = Pengaduan::whereYear('tanggal_pengaduan', Carbon::now($timezone)->year)
+            ->whereMonth('tanggal_pengaduan', Carbon::now($timezone)->month)
+            ->count() + 1;
+        $nomorUrut = str_pad($countThisMonth, 4, '0', STR_PAD_LEFT);
+        $nomorPengaduan = $yearMonthPart . '-' . $nomorUrut;
 
-        // Handle the image file
+        // Handle the main photo
         $fotoPath = '';
         if ($request->hasFile('foto')) {
             $file = $request->file('foto');
@@ -47,15 +55,28 @@ class PengaduanController extends Controller
             $fotoPath = 'uploads/' . $fileName;
         }
 
+        // Handle the kondisi_lapangan photo
+        $kondisiLapanganPath = '';
+        if ($request->hasFile('kondisi_lapangan')) {
+            $file = $request->file('kondisi_lapangan');
+            $fileName = time() . '_kondisi_' . $file->getClientOriginalName();
+            $file->move(public_path('storage/uploads'), $fileName);
+            $kondisiLapanganPath = 'uploads/' . $fileName;
+        }
+
         // Create a new pengaduan entry in the database
         $pengaduan = Pengaduan::create([
             'pelapor' => $request->pelapor,
             'nomor_pengaduan' => $nomorPengaduan,
-            'masalah' => $request->masalah,
+            'kondisi_masalah' => $request->kondisi_masalah,
+            'keterangan_masalah' => $request->keterangan_masalah,
             'id_tiang' => $request->id_tiang,
             'id_panel' => $request->id_panel,
             'jam_pengaduan' => $jamPengaduan,
             'tanggal_pengaduan' => $tanggalPengaduan,
+            'jam_penyelesaian' => null,
+            'tanggal_penyelesaian' => null,
+            'durasi_penyelesaian' => null,
             'lokasi' => $request->lokasi,
             'foto' => $fotoPath,
             'status' => $request->status,
@@ -64,30 +85,32 @@ class PengaduanController extends Controller
         return response()->json($pengaduan, 201);
     }
 
+
     public function update(Request $request, $id)
     {
-        // Find pengaduan by ID
         $pengaduan = Pengaduan::find($id);
         if (!$pengaduan) {
-            return response()->json(['message' => 'Pengaduan tidak ditemukan.'], 404); // Pengaduan not found
+            return response()->json(['message' => 'Pengaduan tidak ditemukan.'], 404);
         }
 
-        // Validate input (skip nomor_pengaduan uniqueness check as it's an update)
+        // Dynamic validation: only validate 'foto' as file if a new file is uploaded
         $request->validate([
             'pelapor' => 'required|string|max:255',
-            'masalah' => 'required|string',
+            'kondisi_masalah' => 'required|string',
+            'keterangan_masalah' => 'required|string',
             'id_tiang' => 'required|integer',
             'id_panel' => 'required|integer',
             'lokasi' => 'required|string',
-            'foto' => 'nullable|file',
+            'foto' => $request->hasFile('foto') ? 'file' : 'nullable', // Only validate as file if present
             'status' => 'required|string',
         ]);
 
-        // Handle the image file
+        // Update foto hanya jika ada file baru yang diupload
         $fotoPath = $pengaduan->foto;
         if ($request->hasFile('foto')) {
+            // Hapus foto lama jika ada
             if ($fotoPath && file_exists(public_path('storage/' . $fotoPath))) {
-                unlink(public_path('storage/' . $fotoPath)); // Delete old image
+                unlink(public_path('storage/' . $fotoPath));
             }
 
             $file = $request->file('foto');
@@ -96,29 +119,64 @@ class PengaduanController extends Controller
             $fotoPath = 'uploads/' . $fileName;
         }
 
-        // Set timezone (defaulting to 'Asia/Jakarta' if not provided)
-        $timezone = $request->input('timezone', 'Asia/Jakarta');
+        // Update kondisi_lapangan hanya jika ada file baru yang diupload
+        $kondisiLapanganPath = $pengaduan->kondisi_lapangan;
+        if ($request->hasFile('kondisi_lapangan')) {
+            // Hapus kondisi_lapangan lama jika ada
+            if ($kondisiLapanganPath && file_exists(public_path('storage/' . $kondisiLapanganPath))) {
+                unlink(public_path('storage/' . $kondisiLapanganPath));
+            }
 
-        // Automatically set to the current date and time
-        $jamPengaduan = Carbon::now($timezone)->format('H:i'); // 24-hour format
-        $tanggalPengaduan = Carbon::now($timezone)->format('Y-m-d');
+            $file = $request->file('kondisi_lapangan');
+            $fileName = time() . '_kondisi_' . $file->getClientOriginalName();
+            $file->move(public_path('storage/uploads'), $fileName);
+            $kondisiLapanganPath = 'uploads/' . $fileName;
+        }
 
-        // Update fields in the database
+        // Hanya perbarui waktu penyelesaian dan durasi jika status diubah menjadi "Selesai"
+        if ($request->status === 'Selesai') {
+            $timezone = 'Asia/Jakarta';
+            $jamPenyelesaian = Carbon::now($timezone)->format('H:i:s'); // Waktu penyelesaian dengan detik
+            $tanggalPenyelesaian = Carbon::now($timezone)->format('Y-m-d');
+
+            // Menghitung durasi penyelesaian
+            $jamPengaduan = Carbon::parse($pengaduan->tanggal_pengaduan . ' ' . $pengaduan->jam_pengaduan, $timezone);
+            $jamPenyelesaianCarbon = Carbon::parse($tanggalPenyelesaian . ' ' . $jamPenyelesaian, $timezone);
+            $durasiPenyelesaian = $jamPengaduan->diff($jamPenyelesaianCarbon);
+
+            // Format durasi menjadi string
+            $durasiFormatted = sprintf(
+                '%d hari, %d jam, %d menit, %d detik',
+                $durasiPenyelesaian->d,
+                $durasiPenyelesaian->h,
+                $durasiPenyelesaian->i,
+                $durasiPenyelesaian->s
+            );
+
+            // Set penyelesaian data
+            $pengaduan->jam_penyelesaian = $jamPenyelesaian;
+            $pengaduan->tanggal_penyelesaian = $tanggalPenyelesaian;
+            $pengaduan->durasi_penyelesaian = $durasiFormatted;
+        }
+
+        // Update fields lainnya
         $pengaduan->pelapor = $request->pelapor;
-        $pengaduan->masalah = $request->masalah;
+        $pengaduan->kondisi_masalah = $request->kondisi_masalah;
+        $pengaduan->keterangan_masalah = $request->keterangan_masalah;
         $pengaduan->id_tiang = $request->id_tiang;
         $pengaduan->id_panel = $request->id_panel;
-        $pengaduan->jam_pengaduan = $jamPengaduan;
-        $pengaduan->tanggal_pengaduan = $tanggalPengaduan;
         $pengaduan->lokasi = $request->lokasi;
-        $pengaduan->foto = $fotoPath;
+        $pengaduan->foto = $fotoPath; // Gunakan path yang diperbarui
         $pengaduan->status = $request->status;
 
-        // Save changes
+        // Simpan perubahan
         $pengaduan->save();
 
-        return response()->json($pengaduan, 200);
+        return response()->json($pengaduan, 201);
     }
+
+
+
 
     // Menghapus pengaduan dari database
     public function destroy($id)
@@ -132,7 +190,7 @@ class PengaduanController extends Controller
         unlink('storage/' . $fotoPath);
 
         $pengaduan->delete();
-        return response()->json(['message' => 'Pengaduan berhasil dihapus.']);
+        return response()->json(['message' => 'Pengaduan berhasil dihapus.'], 201);
     }
     public function count()
     {
@@ -148,7 +206,7 @@ class PengaduanController extends Controller
             'total_pengaduan' => $totalPengaduan,
             'total_completed' => $totalCompleted,
             'total_pending' => $totalPending,
-        ]);
+        ], 201);
     }
 
     public function monthlyCount()
@@ -191,5 +249,30 @@ class PengaduanController extends Controller
         }
 
         return response()->json($data);
+    }
+    public function exportToExcel()
+    {
+        try {
+            return Excel::download(new PengaduanExport, 'pengaduan_' . now()->format('Ymd_His') . '.xlsx');
+        } catch (\Exception $e) {
+            Log::error('Error saat melakukan ekspor: ' . $e->getMessage());
+            return response()->json(['error' => 'Gagal mengekspor data. Silakan coba lagi.'], 500);
+        }
+    }
+
+    public function importExcel(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv',
+        ]);
+
+        // Simpan foto (optional jika diunggah secara bersamaan)
+        if ($request->hasFile('foto')) {
+            $path = $request->file('foto')->store('foto_pengaduan', 'public');
+        }
+
+        Excel::import(new PengaduanImport, $request->file('file'));
+
+        return response()->json(['sukses menambahkan data'], 201);
     }
 }

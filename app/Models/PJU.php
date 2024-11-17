@@ -9,22 +9,35 @@ class PJU extends Model
 {
     use HasFactory;
 
-    protected $table = 'pjus';
-    
+    protected $table = 'data_pjus';
+
     protected $primaryKey = 'id_pju';
 
     protected $fillable = [
-        'Lapisan',
-        'No_App',
-        'No_Tiang_lama',
-        'No_tiang_baru',
-        'Nama_Jalan',
+        'panel_id',
+        'lapisan',
+        'no_app',
+        'no_tiang_lama',
+        'no_tiang_baru',
+        'nama_jalan',
         'kecamatan',
-        'Tinggi_Tiang_m',
-        'Jenis_Tiang',
-        'Daya_lampu_w',
-        'Status_Jalan',
-        'longtidute',
-        'lattidute',
+        'tinggi_tiang',
+        'jenis_tiang',
+        'spesifikasi_tiang',
+        'daya_lampu',
+        'status_jalan',
+        'tanggal_pemasangan_tiang',
+        'tanggal_pemasangan_lampu',
+        'lifetime_tiang',
+        'lifetime_lampu',
+        'rekomendasi_tiang',
+        'rekomendasi_lampu',
+        'longitude',
+        'latitude',
     ];
+
+    public function panel()
+    {
+        return $this->belongsTo(Panel::class, 'panel_id', 'id_panel');
+    }
 }
