@@ -15,7 +15,6 @@ return new class extends Migration
             $table->id('id_pju');
             $table->foreignId('panel_id')->constrained('data_panels', 'id_panel')->onDelete('cascade');
             $table->string('lapisan');
-            $table->string('no_app');
             $table->integer('no_tiang_lama');
             $table->integer('no_tiang_baru');
             $table->string('nama_jalan');

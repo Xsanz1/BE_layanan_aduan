@@ -21,4 +21,5 @@ class Panel extends Model
         'kecamatan', 'idpel', 'no_kwh', 'no_kunci', 'magnetik_kontaktor', 'timer', 
         'mcb_kwh', 'terminal_block', 'rccb', 'pilot_lamp'
     ];
+    
 }

@@ -79,7 +79,7 @@ class PanelController extends Controller
     }
     public function listNoApp()
     {
-        $data = Panel::select('id_panel', 'No_App')->get();
-        return response()->json($data, 201);
+        $data = Panel::select('id_panel', 'no_app')->get();
+        return response()->json(["datas"=> $data], 200);
     }
 }

@@ -66,7 +66,7 @@ class AuthController extends Controller
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
             ],
-        ], 201);
+        ], 200);
     }
 
     public function updateProfile(Request $request)
@@ -99,6 +99,6 @@ class AuthController extends Controller
                 'username' => $user->username,
                 'foto' => $user->foto,
             ],
-        ], 201);
+        ], 200);
     }
 }

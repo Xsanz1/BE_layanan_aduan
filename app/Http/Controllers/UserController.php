@@ -50,7 +50,7 @@ class UserController extends Controller
         // Buat pengguna baru
         $user = User::create($userData);
 
-        return response()->json($user, 201);
+        return response()->json($user, 200);
     }
 
     public function show($id)

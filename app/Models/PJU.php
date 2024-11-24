@@ -16,7 +16,6 @@ class PJU extends Model
     protected $fillable = [
         'panel_id',
         'lapisan',
-        'no_app',
         'no_tiang_lama',
         'no_tiang_baru',
         'nama_jalan',
@@ -40,4 +39,5 @@ class PJU extends Model
     {
         return $this->belongsTo(Panel::class, 'panel_id', 'id_panel');
     }
+    
 }

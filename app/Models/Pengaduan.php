@@ -12,35 +12,58 @@ class Pengaduan extends Model
     protected $table = 'pengaduan';
     protected $primaryKey = 'id_pengaduan';
     protected $fillable = [
-        'pelapor',
         'nomor_pengaduan',
+        'pelapor',
         'kondisi_masalah',
-        'keterangan_masalah',
-        'id_tiang',        // Foreign key to PJU
-        'id_panel',        // Foreign key to Panel
-        'jam_pengaduan',
-        'tanggal_pengaduan',
-        'jam_penyelesaian',
-        'tanggal_penyelesaian',
-        'durasi_penyelesaian',
         'lokasi',
-        'foto',
+        'foto_pengaduan',
+        'tanggal_pengaduan',
+        'jam_pengaduan',
+        'keterangan_masalah',
+        'foto_penanganan',
+        'uraian_masalah',
+        'tanggal_penyelesaian',
+        'jam_penyelesaian',
+        'durasi_penyelesaian',
+        'penyelesaian_masalah',
         'status',
     ];
 
     /**
-     * Relasi ke tabel PJU.
+     * Relasi ke tabel detail_pengaduan (one-to-many).
      */
-    public function pju()
+    public function detailPengaduans()
     {
-        return $this->belongsTo(PJU::class, 'id_tiang'); // 'id' adalah primary key di tabel pju
+        return $this->hasMany(DetailPengaduan::class, 'pengaduan_id', 'id_pengaduan');
     }
 
     /**
-     * Relasi ke tabel Panel.
+     * Relasi ke tabel PJU melalui DetailPengaduan.
      */
-    public function panel()
+    public function pjus()
     {
-        return $this->belongsTo(Panel::class, 'id_panel'); // 'id' adalah primary key di tabel panel
+        return $this->hasManyThrough(
+            Pju::class, // Model tujuan
+            DetailPengaduan::class, // Model perantara
+            'pengaduan_id', // Foreign key pada DetailPengaduan
+            'id_pju', // Foreign key pada Pju
+            'id_pengaduan', // Local key pada Pengaduan
+            'pju_id' // Local key pada DetailPengaduan
+        );
+    }
+
+    /**
+     * Relasi ke tabel Panel melalui DetailPengaduan.
+     */
+    public function panels()
+    {
+        return $this->hasManyThrough(
+            Panel::class, // Model tujuan
+            DetailPengaduan::class, // Model perantara
+            'pengaduan_id', // Foreign key pada DetailPengaduan
+            'id_panel', // Foreign key pada Panel
+            'id_pengaduan', // Local key pada Pengaduan
+            'panel_id' // Local key pada DetailPengaduan
+        );
     }
 }

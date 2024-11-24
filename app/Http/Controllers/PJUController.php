@@ -6,6 +6,7 @@ use App\Models\PJU;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\PJUImport;
+use Illuminate\Support\Facades\Log;
 
 class PJUController extends Controller
 {
@@ -23,14 +24,14 @@ class PJUController extends Controller
         if (!$pjus) {
             return response()->json(['message' => 'Data not found'], 404);
         }
-        return response()->json($pjus, 201);
+        return response()->json($pjus, 200);
     }
 
     // Create new data
     public function store(Request $request)
     {
         $pjus = PJU::create($request->all());
-        return response()->json($pjus, 201);
+        return response()->json($pjus, 200);
     }
 
     // Update existing data
@@ -41,7 +42,7 @@ class PJUController extends Controller
             return response()->json(['message' => 'Data not found'], 404);
         }
         $pjus->update($request->all());
-        return response()->json($pjus, 201);
+        return response()->json($pjus, 200);
     }
 
     // Delete data
@@ -52,12 +53,12 @@ class PJUController extends Controller
             return response()->json(['message' => 'Data not found'], 404);
         }
         $pjus->delete();
-        return response()->json(['message' => 'Data deleted successfully'], 201);
+        return response()->json(['message' => 'Data deleted successfully'], 200);
     }
     public function listNoTiangBaru()
     {
-        $data = PJU::select('id_pju', 'No_Tiang_baru')->get();
-        return response()->json(["datas"=> $data], 201);
+        $data = PJU::select('id_pju', 'no_tiang_baru')->get();
+        return response()->json(["datas" => $data], 200);
     }
 
     public function importPju(Request $request)
@@ -68,7 +69,17 @@ class PJUController extends Controller
 
         Excel::import(new PjuImport, $request->file('file'));
 
-        return response()->json(['sukses menambahkan data'], 201);
+        return response()->json(['sukses menambahkan data'], 200);
+    }
+    public function getPjuByPanel($panelId)
+    {
+        Log::info("Fetching PJU for panel ID: {$panelId}");
+        $data = Pju::where('panel_id', $panelId)->get();
+
+        if ($data->isEmpty()) {
+            Log::warning("No PJU data found for panel ID: {$panelId}");
+        }
+
+        return response()->json(['datas' => $data], 200);
     }
 }
-
