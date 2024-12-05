@@ -7,18 +7,38 @@ use Illuminate\Http\Request;
 use Carbon\Carbon;
 use App\Exports\PengaduanExport;
 use App\Imports\PengaduanImport;
+use PhpOffice\PhpWord\PhpWord;
+use PhpOffice\PhpWord\IOFactory;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Log;
 use App\Models\DetailPengaduan;
 use Throwable;
+use App\Services\WablasService;
+use Exception;
 
 class PengaduanController extends Controller
+
 {
-    // Menampilkan daftar pengaduan
-    // Menampilkan daftar pengaduan
-    public function get_pengaduan()
+    protected $wablasService;
+
+    public function __construct(WablasService $wablasService)
     {
-        $pengaduan = Pengaduan::with(['detailPengaduans.pju', 'detailPengaduans.panel'])->get();
+        $this->wablasService = $wablasService;
+    }
+    // Menampilkan daftar pengaduan
+    // Menampilkan daftar pengaduan
+    public function get_pengaduan(Request $request)
+    {
+        // Mengambil bulan dan tahun dari request, jika tidak ada maka default ke bulan dan tahun saat ini
+        $currentMonth = $request->input('month', now()->month); // Menggunakan bulan saat ini jika tidak ada input bulan
+        $currentYear = $request->input('year', now()->year);  // Menggunakan tahun saat ini jika tidak ada input tahun
+
+        $pengaduan = Pengaduan::with(['detailPengaduans.pju', 'detailPengaduans.panel'])
+            ->whereMonth('tanggal_pengaduan', $currentMonth) // Memfilter berdasarkan bulan saat ini
+            ->whereYear('tanggal_pengaduan', $currentYear)  // Memfilter berdasarkan tahun saat ini
+            ->orderBy('tanggal_pengaduan', 'desc')  // Mengurutkan berdasarkan tanggal_pengaduan terbaru
+            ->get();
+
         return response()->json($pengaduan, 200);
     }
 
@@ -119,21 +139,64 @@ class PengaduanController extends Controller
         ]);
     }
 
-
-
     // Membuat pengaduan baru
     public function create_pengaduan(Request $request)
     {
+        // Validasi awal
         $request->validate([
             'pelapor' => 'required|string|max:255',
             'kondisi_masalah' => 'required|string',
-            'panel_id' => 'required|integer|exists:data_panels,id_panel', // Only one Panel ID
-            'pju_id' => 'required|array', // Array of PJU IDs
-            'pju_id.*' => 'exists:data_pjus,id_pju',
+            'panel_id' => 'required|integer|exists:data_panels,id_panel', // Panel wajib dipilih
             'lokasi' => 'required|string',
             'foto_pengaduan' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
             'keterangan_masalah' => 'required|string',
         ]);
+
+        // Jika kondisi masalah mengandung kata 'Panel', maka pju_id opsional
+        if (str_contains($request->kondisi_masalah, 'Panel')) {
+            $request->validate([
+                'pju_id' => 'nullable|array', // Array PJU ID menjadi opsional
+                'pju_id.*' => 'nullable|exists:data_pjus,id_pju', // Setiap PJU ID valid jika diisi
+            ]);
+        }
+
+        // Validasi: Pastikan panel belum terhubung dengan pengaduan aktif
+        $existingPengaduanPanel = Pengaduan::whereHas('detailPengaduans', function ($query) use ($request) {
+            $query->where('panel_id', $request->panel_id);
+        })->whereIn('status', ['Pending', 'Progress'])->first();
+
+        if ($existingPengaduanPanel) {
+            return response()->json([
+                'message' => 'Panel ini tidak dapat dipilih karena sedang terhubung dengan pengaduan yang belum selesai.',
+                'pengaduan_id' => $existingPengaduanPanel->id_pengaduan,
+                'status' => $existingPengaduanPanel->status
+            ], 400);
+        }
+
+        // Validasi: Pastikan setiap PJU belum terhubung dengan pengaduan aktif
+        $existingPjus = [];
+        if ($request->pju_id) {
+            foreach ($request->pju_id as $pjuId) {
+                $existingPengaduanPju = Pengaduan::whereHas('detailPengaduans', function ($query) use ($pjuId) {
+                    $query->where('pju_id', $pjuId);
+                })->whereIn('status', ['Pending', 'Progress'])->first();
+
+                if ($existingPengaduanPju) {
+                    $existingPjus[] = [
+                        'pju_id' => $pjuId,
+                        'pengaduan_id' => $existingPengaduanPju->id_pengaduan,
+                        'status' => $existingPengaduanPju->status,
+                    ];
+                }
+            }
+
+            if (!empty($existingPjus)) {
+                return response()->json([
+                    'message' => 'Beberapa PJU tidak dapat dipilih karena sedang terhubung dengan pengaduan yang belum selesai.',
+                    'details' => $existingPjus
+                ], 400);
+            }
+        }
 
         // Set timezone dan format waktu
         $timezone = 'Asia/Jakarta';
@@ -145,10 +208,21 @@ class PengaduanController extends Controller
         $fotoPath = null;
         if ($request->hasFile('foto_pengaduan')) {
             $file = $request->file('foto_pengaduan');
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $file->move(public_path('storage/uploads'), $fileName);
-            $fotoPath = 'uploads/' . $fileName;
+
+            // Cek apakah file benar-benar ada
+            if ($file->isValid()) {
+                $fileName = $file->getClientOriginalName();
+                $file->move(public_path('storage/uploads'), $fileName);
+                $fotoPath = 'uploads/' . $fileName; // Lokasi file di server
+            } else {
+                return response()->json([
+                    'message' => 'Foto pengaduan tidak valid.',
+                ], 400);
+            }
+        } else {
+            $fotoPath = null;
         }
+
 
         // Buat data utama pengaduan
         $pengaduan = Pengaduan::create([
@@ -165,11 +239,21 @@ class PengaduanController extends Controller
 
         // Masukkan detail pengaduan
         $details = [];
-        foreach ($request->pju_id as $pjuId) {
+        if ($request->pju_id && is_array($request->pju_id)) {
+            foreach ($request->pju_id as $pjuId) {
+                $details[] = [
+                    'pengaduan_id' => $pengaduan->id_pengaduan,
+                    'panel_id' => $request->panel_id,
+                    'pju_id' => $pjuId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+        } else {
             $details[] = [
                 'pengaduan_id' => $pengaduan->id_pengaduan,
-                'panel_id' => $request->panel_id, // Only one panel
-                'pju_id' => $pjuId,
+                'panel_id' => $request->panel_id,
+                'pju_id' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
@@ -178,12 +262,32 @@ class PengaduanController extends Controller
         // Insert ke tabel detail_pengaduan
         DetailPengaduan::insert($details);
 
-        return response()->json($pengaduan->load('detailPengaduans.pju', 'detailPengaduans.panel'), 201);
+        // Load relasi untuk response
+        $pengaduan->load('detailPengaduans.panel', 'detailPengaduans.pju');
+
+        // Mengirim pesan ke WhatsApp setelah pengaduan dibuat
+        $message = "Nomor Pengaduan: " . $pengaduan->nomor_pengaduan . "\n";
+        $message .= "Pelapor: " . $pengaduan->pelapor . "\n";
+        $message .= "Kondisi Masalah: " . $pengaduan->kondisi_masalah . "\n";
+        $message .= "Lokasi: " . $pengaduan->lokasi . "\n";
+        $message .= "Tanggal Pengaduan: " . $pengaduan->tanggal_pengaduan . "\n";
+        $message .= "Jam Pengaduan: " . $pengaduan->jam_pengaduan . "\n";
+        $message .= "Keterangan Masalah: " . $pengaduan->keterangan_masalah . "\n";
+        $message .= "Status: " . $pengaduan->status . "\n";
+
+        if ($pengaduan->foto_pengaduan) {
+            $fotoUrl = url('uploads/' . $pengaduan->foto_pengaduan); // Menyusun URL gambar
+            $response = $this->wablasService->sendMessageToGroup($message, $fotoUrl); // Kirim gambar
+        } else {
+            $response = $this->wablasService->sendMessageToGroup($message, null); // Kirim tanpa gambar
+        }
+
+        return response()->json($pengaduan->load('detailPengaduans.panel', 'detailPengaduans.pju'), 200);
     }
 
+
+
     // Memperbarui pengaduan
-
-
     public function update_pengaduan(Request $request, $id_pengaduan)
     {
         try {
@@ -203,6 +307,8 @@ class PengaduanController extends Controller
             $request->validate([
                 'uraian_masalah' => 'nullable|string',
                 'penyelesaian_masalah' => 'nullable|string',
+                'pencegahan_masalah' => 'nullable|string',
+                'pengelompokan_masalah' => 'nullable|string|in:Eksternal,Internal',
                 'status' => 'required|string|in:Pending,Selesai,Proses',
             ]);
 
@@ -228,35 +334,45 @@ class PengaduanController extends Controller
                 $updateData['penyelesaian_masalah'] = $request->penyelesaian_masalah;
             }
 
+            if ($request->filled('pencegahan_masalah')) {
+                $updateData['pencegahan_masalah'] = $request->pencegahan_masalah;
+            }
+
+            if ($request->filled('pengelompokan_masalah')) {
+                $updateData['pengelompokan_masalah'] = $request->pengelompokan_masalah;
+            }
+
             // Proses upload foto jika ada
             if ($request->hasFile('foto_penanganan')) {
                 Log::info("Proses upload file foto penanganan.");
                 $file = $request->file('foto_penanganan');
-                $fileName = time() . '_' . $file->getClientOriginalName();
+                $fileName = $file->getClientOriginalName();
                 $file->move(public_path('storage/uploads'), $fileName);
                 $updateData['foto_penanganan'] = 'uploads/' . $fileName;
                 Log::info("Foto berhasil diupload dengan path: " . $updateData['foto_penanganan']);
             }
 
             // Jika status menjadi Selesai, update waktu penyelesaian
+            // Jika status menjadi Selesai, update waktu penyelesaian
             if ($request->status === 'Selesai') {
                 $timezone = 'Asia/Jakarta';
-                $jamPenyelesaian = Carbon::now($timezone)->format('H:i:s');
+                $jamPenyelesaian = Carbon::now($timezone)->format('H:i');
                 $tanggalPenyelesaian = Carbon::now($timezone)->format('Y-m-d');
 
                 $jamPengaduan = Carbon::parse($pengaduan->tanggal_pengaduan . ' ' . $pengaduan->jam_pengaduan, $timezone);
                 $jamPenyelesaianCarbon = Carbon::parse($tanggalPenyelesaian . ' ' . $jamPenyelesaian, $timezone);
                 $durasiPenyelesaian = $jamPengaduan->diff($jamPenyelesaianCarbon);
 
+                // Mengakumulasi durasi hari menjadi jam
+                $totalJam = ($durasiPenyelesaian->d * 24) + $durasiPenyelesaian->h; // Mengubah hari menjadi jam dan menambahkannya
+                $totalMenit = $durasiPenyelesaian->i;
+
+                // Format durasi dalam jam dan menit
+                $durasiPenyelesaianFormatted = sprintf('%d jam, %d menit', $totalJam, $totalMenit);
+
                 $updateData['jam_penyelesaian'] = $jamPenyelesaian;
                 $updateData['tanggal_penyelesaian'] = $tanggalPenyelesaian;
-                $updateData['durasi_penyelesaian'] = sprintf(
-                    '%d hari, %d jam, %d menit, %d detik',
-                    $durasiPenyelesaian->d,
-                    $durasiPenyelesaian->h,
-                    $durasiPenyelesaian->i,
-                    $durasiPenyelesaian->s
-                );
+                $updateData['durasi_penyelesaian'] = $durasiPenyelesaianFormatted;
 
                 Log::info("Durasi penyelesaian dihitung: " . $updateData['durasi_penyelesaian']);
             }
@@ -268,11 +384,27 @@ class PengaduanController extends Controller
 
             $pengaduan->load('detailPengaduans.pju', 'detailPengaduans.panel');
 
+            // Mengirim pesan ke WhatsApp setelah pengaduan dibuat
+            $message = "Uraian_masalah: " . $pengaduan->uraian_masalah . "\n";
+            $message .= "Penyelesaian Masalah: " . $pengaduan->penyelesaian_masalah . "\n";
+            $message .= "Pencegahan Masalah: " . $pengaduan->pencegahan_masalah . "\n";
+            $message .= "Pengelompokan Masalah: " . $pengaduan->pengelompokan_masalah . "\n";
+            $message .= "Tanggal Penanganan: " . $pengaduan->tanggal_penyelesaian . "\n";
+            $message .= "Jam Penyelesaian: " . $pengaduan->jam_penyelesaian . "\n";
+            $message .= "Durasi Penyelesaian: " . $pengaduan->durasi_penyelesaian . "\n";
+
+            if ($pengaduan->foto_penanganan) {
+                $fotoUrl = url('uploads/' . $pengaduan->foto_penanganan); // Menyusun URL gambar
+                $response = $this->wablasService->sendMessageToGroup($message, $fotoUrl); // Kirim gambar
+            } else {
+                $response = $this->wablasService->sendMessageToGroup($message, null); // Kirim tanpa gambar
+            }
+
             return response()->json([
                 'message' => 'Pengaduan berhasil diperbarui.',
                 'data_pengaduan' => $pengaduan,
             ], 200);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error("Terjadi kesalahan saat update pengaduan: ", ['error' => $e->getMessage()]);
             return response()->json(['message' => 'Terjadi kesalahan saat memperbarui pengaduan.'], 500);
         }
@@ -378,20 +510,139 @@ class PengaduanController extends Controller
             return response()->json(['message' => 'Gagal mengekspor data.'], 500);
         }
     }
-
     public function import_pengaduan(Request $request)
     {
         $request->validate([
             'file' => 'required|mimes:xlsx,xls,csv',
         ]);
 
-        // Simpan foto (optional jika diunggah secara bersamaan)
-        if ($request->hasFile('foto')) {
-            $path = $request->file('foto')->store('foto_pengaduan', 'public');
+        try {
+            // Simpan foto (optional jika diunggah secara bersamaan)
+            if ($request->hasFile('foto')) {
+                $path = $request->file('foto')->store('foto_pengaduan', 'public');
+            }
+
+            // Import data Excel
+            Excel::import(new PengaduanImport, $request->file('file'));
+
+            return response()->json(['sukses menambahkan data'], 200);
+        } catch (Exception $e) {
+            // Log error jika terjadi kegagalan saat impor
+            Log::error('Import Pengaduan Gagal: ' . $e->getMessage(), [
+                'file' => $request->file('file')->getClientOriginalName(),
+                'error' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json(['error' => 'Gagal mengimpor data, silakan coba lagi.'], 500);
+        }
+    }
+    public function validatePanel($panel_id)
+    {
+        try {
+            // Cari pengaduan aktif (Pending/In Progress) yang terkait dengan panel
+            $pengaduan = Pengaduan::whereHas('detailPengaduans', function ($query) use ($panel_id) {
+                $query->where('panel_id', $panel_id);
+            })->whereIn('status', ['Pending', 'In Progress'])->first();
+
+            // Jika pengaduan ditemukan, panel tidak tersedia
+            if ($pengaduan) {
+                return response()->json([
+                    'message' => 'Panel ini tidak dapat dipilih karena sedang terhubung dengan pengaduan yang belum selesai.',
+                    'pengaduan_id' => $pengaduan->id_pengaduan,
+                    'status' => $pengaduan->status
+                ], 400);
+            }
+
+            // Jika tidak ada pengaduan aktif, panel tersedia untuk dipilih
+            return response()->json([
+                'message' => 'Panel tersedia untuk dipilih.'
+            ], 200);
+        } catch (Exception $e) {
+            // Log error dan kembalikan respons kesalahan
+            Log::error("Error validating panel: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat memvalidasi panel.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function exportToWord()
+    {
+        // Ambil semua data pengaduan dan detail pengaduan
+        $pengaduans = Pengaduan::all(); // Mengambil semua data pengaduan
+        $detailPengaduans = DetailPengaduan::all(); // Mengambil semua data detail pengaduan
+
+        // Pastikan kita punya data untuk diproses
+        if ($pengaduans->isEmpty() || $detailPengaduans->isEmpty()) {
+            return response()->json(['message' => 'Tidak ada data pengaduan atau penyelesaian'], 400);
         }
 
-        Excel::import(new PengaduanImport, $request->file('file'));
+        $phpWord = new PhpWord();
 
-        return response()->json(['sukses menambahkan data'], 200);
+        // Menambahkan bagian pertama (nomor laporan dan panel nomor)
+        $section = $phpWord->addSection();
+        $section->addText("Nomor Laporan: " . $pengaduans->first()->nomor_pengaduan); // Mengambil nomor laporan pertama
+        $section->addText("Panel Nomor: " . $detailPengaduans->first()->panel_id); // Mengambil panel_id pertama
+
+        // Menambahkan bagian tabel (Pengaduan dan Penyelesaian)
+        $section->addTextBreak(1); // Memberikan jarak antara teks dan tabel
+        $table = $section->addTable();
+
+        // Menambahkan header tabel
+        $table->addRow();
+        $table->addCell(3000)->addText("Pengaduan");
+        $table->addCell(3000)->addText("Penyelesaian");
+
+        // Loop untuk menambahkan pengaduan dan penyelesaian ke tabel
+        foreach ($pengaduans as $pengaduan) {
+            // Mencari penyelesaian terkait berdasarkan ID pengaduan
+            $penyelesaian = $detailPengaduans->firstWhere('pengaduan_id', $pengaduan->id_pengaduan); // Sesuaikan 'pengaduan_id' dengan kolom yang sesuai
+
+            $table->addRow();
+            $table->addCell(3000)->addText($pengaduan->deskripsi_pengaduan); // Ambil deskripsi pengaduan
+            $table->addCell(3000)->addText($penyelesaian ? $penyelesaian->deskripsi_penyelesaian : 'Belum ada penyelesaian'); // Ambil deskripsi penyelesaian
+        }
+
+        // Menyimpan file Word
+        $fileName = 'Laporan_Pengaduan_' . '.docx';
+        $filePath = storage_path('app/public/' . $fileName);
+        $phpWord->save($filePath, 'Word2007');
+
+        // Mengirim file ke browser untuk diunduh
+        return response()->download($filePath)->deleteFileAfterSend(true);
+    }
+
+    public function filterPengaduan(Request $request)
+    {
+        $currentMonth = $request->input('month');
+        $currentYear = $request->input('year');
+
+        // Log nilai bulan dan tahun yang diterima
+        Log::debug("Bulan yang diterima: " . $currentMonth);
+        Log::debug("Tahun yang diterima: " . $currentYear);
+
+        try {
+            // Debugging: Log query yang akan dijalankan
+            $query = Pengaduan::with(['detailPengaduans.pju', 'detailPengaduans.panel'])
+                ->whereMonth('tanggal_pengaduan', $currentMonth)
+                ->whereYear('tanggal_pengaduan', $currentYear)
+                ->orderBy('tanggal_pengaduan', 'desc');
+
+            Log::debug("Query: " . $query->toSql()); // Log query
+
+            $pengaduan = $query->get();
+
+            // Jika data tidak ada
+            if ($pengaduan->isEmpty()) {
+                return response()->json(['message' => 'Tidak ada pengaduan untuk bulan dan tahun ini.'], 404);
+            }
+
+            return response()->json($pengaduan, 200);
+        } catch (Exception $e) {
+            // Log error jika terjadi exception
+            Log::error('Error saat mengambil pengaduan: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 }

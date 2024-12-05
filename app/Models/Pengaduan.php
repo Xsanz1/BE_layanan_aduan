@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 
 class Pengaduan extends Model
 {
@@ -26,6 +27,8 @@ class Pengaduan extends Model
         'jam_penyelesaian',
         'durasi_penyelesaian',
         'penyelesaian_masalah',
+        'pencegahan_masalah',
+        'pengelompokan_masalah',
         'status',
     ];
 
@@ -65,5 +68,11 @@ class Pengaduan extends Model
             'id_pengaduan', // Local key pada Pengaduan
             'panel_id' // Local key pada DetailPengaduan
         );
+    }
+    // Fungsi untuk filter pengaduan berdasarkan tahun dan bulan
+    public function scopeFilterByTahunDanBulan(Builder $query, $tahun, $bulan)
+    {
+        return $query->whereYear('tanggal_pengaduan', $tahun)
+                    ->whereMonth('tanggal_pengaduan', $bulan);
     }
 }

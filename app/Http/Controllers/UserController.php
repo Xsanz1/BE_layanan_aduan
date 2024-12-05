@@ -17,7 +17,6 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
             'username' => 'required|string|max:255',
             'password' => 'required|string|min:8',
             'role' => 'required',
@@ -25,21 +24,20 @@ class UserController extends Controller
         ]);
 
         // Handle file upload if a photo is provided
-        $fotoPath = '';
+        $fotoPath = null;
 
         if ($request->hasFile('foto')) {
+            if ($fotoPath && file_exists(public_path($fotoPath))) {
+                unlink(public_path($fotoPath)); // Hapus file lama
+            }
             $file = $request->file('foto');
             $fileName = time() . '_' . $file->getClientOriginalName();
             $file->move(public_path('storage/uploads'), $fileName);
             $fotoPath = 'uploads/' . $fileName;
-        } else {
-            $fotoPath = '';
         }
-
         // Persiapkan data pengguna
         $userData = [
             'name' => $request->name,
-            'email' => $request->email,
             'username' => $request->username,
             'password' => bcrypt($request->password), // Enkripsi password
             'role' => $request->role,
@@ -53,19 +51,19 @@ class UserController extends Controller
         return response()->json($user, 200);
     }
 
-    public function show($id)
+    public function show($id_user)
     {
-        return User::findOrFail($id);
+        return User::findOrFail($id_user);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $id_user)
     {
-        $user = User::find($id);
+        $user = User::find($id_user);
         if (!$user) {
             return response()->json(['message' => 'Pengguna tidak ditemukan.'], 404); // Not found response
         }
     
-        $fotoPath = $user->foto;
+        $fotoPath = null;
 
         if ($request->hasFile('foto')) {
             // unlink('storage/'.$fotoPath);
@@ -73,12 +71,9 @@ class UserController extends Controller
             $fileName = time() . '_' . $file->getClientOriginalName();
             $file->move(public_path('storage/uploads'), $fileName);
             $fotoPath = 'uploads/' . $fileName;
-        } else {
-            $fotoPath = $user->foto;
         }
     
         $user->name = $request->name;
-        $user->email = $request->email;
         $user->username = $request->username;
         $user ->role = $request->role;
         $user->foto = $fotoPath;
@@ -88,9 +83,9 @@ class UserController extends Controller
         return response()->json($user);
     }
 
-    public function destroy(string $id)
+    public function destroy(string $id_user)
     {
-        $user = User::find($id);
+        $user = User::find($id_user);
         if (!$user) {
             return response()->json(['message' => 'user tidak ditemukan.'], 404); // Not found response
         }

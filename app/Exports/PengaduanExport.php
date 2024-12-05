@@ -13,7 +13,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use Illuminate\Support\Facades\Log;
 
 
-class PengaduanExport implements FromCollection, WithHeadings
+class PengaduanExport implements FromCollection, WithHeadings, WithDrawings
 {
     public function collection()
     {
@@ -26,7 +26,6 @@ class PengaduanExport implements FromCollection, WithHeadings
         foreach ($pengaduans as $pengaduan) {
             foreach ($pengaduan->detailPengaduans as $detail) {
                 $rows[] = [
-                    'id_pengaduan' => $pengaduan->id_pengaduan,
                     'nomor_pengaduan' => $pengaduan->nomor_pengaduan,
                     'pelapor' => $pengaduan->pelapor,
                     'kondisi_masalah' => $pengaduan->kondisi_masalah,
@@ -71,37 +70,45 @@ class PengaduanExport implements FromCollection, WithHeadings
             'Status',
         ];
     }
-};
 
-    // public function drawings()
-    // {
-    //     $drawings = [];
-    //     $pengaduanData = Pengaduan::all();
+    public function drawings()
+    {
+        $drawings = [];
+        $pengaduanData = Pengaduan::all();
 
-    //     foreach ($pengaduanData as $index => $pengaduan) {
-    //         if ($pengaduan->foto_pengaduan && Storage::disk('public')->exists($pengaduan->foto_pengaduan)) {
-    //             $drawing = new Drawing();
-    //             $drawing->setName('Foto Pengaduan');
-    //             $drawing->setDescription('Foto Pengaduan');
-    //             $drawing->setPath(public_path('storage/' . $pengaduan->foto_pengaduan));
-    //             $drawing->setHeight(50);
-    //             $drawing->setCoordinates('E' . ($index + 2)); // Tempatkan gambar di kolom 'E'
-    //             $drawings[] = $drawing;
-    //         }
-    //     }
+        foreach ($pengaduanData as $index => $pengaduan) {
+            if ($pengaduan->foto_pengaduan && Storage::disk('public')->exists($pengaduan->foto_pengaduan)) {
+                $drawing = new Drawing();
+                $drawing->setName('Foto Pengaduan');
+                $drawing->setDescription('Foto Pengaduan');
+                $drawing->setPath(public_path('storage/' . $pengaduan->foto_pengaduan));
+                $drawing->setHeight(50);
+                $drawing->setCoordinates('E' . ($index + 2)); // Tempatkan gambar di kolom 'E'
+                $drawings[] = $drawing;
+            }
+            if ($pengaduan->foto_penanganan && Storage::disk('public')->exists($pengaduan->foto_penanganan)) {
+                $drawing = new Drawing();
+                $drawing->setName('Foto Penanganan');
+                $drawing->setDescription('Foto Penanganan');
+                $drawing->setPath(public_path('storage/' . $pengaduan->foto_penanganan));
+                $drawing->setHeight(50);
+                $drawing->setCoordinates('I' . ($index + 2)); // Tempatkan gambar di kolom 'E'
+                $drawings[] = $drawing;
+            }
+        }
 
-    //     return $drawings;
-    // }
+        return $drawings;
+    }
 
-//     public function registerEvents(): array
-//     {
-//         return [
-//             AfterSheet::class => function (AfterSheet $event) {
-//                 // Aktifkan AutoSize untuk kolom
-//                 foreach (range('A', 'Q') as $column) {
-//                     $event->sheet->getDelegate()->getColumnDimension($column)->setAutoSize(true);
-//                 }
-//             },
-//         ];
-//     }
-// }
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                // Aktifkan AutoSize untuk kolom
+                foreach (range('A', 'Q') as $column) {
+                    $event->sheet->getDelegate()->getColumnDimension($column)->setAutoSize(true);
+                }
+            },
+        ];
+    }
+}

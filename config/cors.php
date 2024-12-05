@@ -2,11 +2,11 @@
 
 return [
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'], // Path yang diizinkan CORS, biasanya cukup dengan 'api/*' untuk semua endpoint API.
+    'paths' => ['api/*', 'sanctum/csrf-cookie'], // Path yang diizinkan CORS, biasanya cukup dengan 'api/*' untuk semua endpoint API., 
 
-    'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE'], // Mengizinkan semua metode HTTP (GET, POST, PUT, DELETE, dll.) atau tentukan metode yang diperlukan.
+    'allowed_methods' => ['*'], // Mengizinkan semua metode HTTP (GET, POST, PUT, DELETE, dll.) atau tentukan metode yang diperlukan.
 
-    'allowed_origins' => ['http://localhost:3002'], // Asal (origin) yang diizinkan, sesuaikan dengan domain frontend Anda.
+    'allowed_origins' => ['*'], // Asal (origin) yang diizinkan, sesuaikan dengan domain frontend Anda.
 
     'allowed_origins_patterns' => [],
 

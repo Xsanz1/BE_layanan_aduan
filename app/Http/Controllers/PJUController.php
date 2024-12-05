@@ -82,4 +82,11 @@ class PJUController extends Controller
 
         return response()->json(['datas' => $data], 200);
     }
+    // Count total PJU data
+    public function countPJU()
+    {
+        $count = PJU::count();
+        return response()->json(['total_pju' => $count], 200);
+    }
+    
 }

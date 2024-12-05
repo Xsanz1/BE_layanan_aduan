@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id('id_detail_pengaduan');
             $table->foreignId('pengaduan_id')->constrained('pengaduan', 'id_pengaduan')->onDelete('cascade');
             $table->foreignId('panel_id')->constrained('data_panels', 'id_panel')->onDelete('cascade');
-            $table->foreignId('pju_id')->constrained('data_pjus', 'id_pju')->onDelete('cascade');
+            $table->foreignId('pju_id')->nullable()->constrained('data_pjus', 'id_pju')->onDelete('cascade');
             $table->timestamps();
         });
         

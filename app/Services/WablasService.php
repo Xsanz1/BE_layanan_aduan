@@ -12,9 +12,9 @@ class WablasService
 
     public function __construct()
     {
-        $this->apiToken = env('WABLAS_API_TOKEN', 'TdGPAHSKFUpWs8vQPPnPt9atxMBbZoPVYUQmQ7BKg00X24WgHAuaJMZ60GAl1wx9');
-        $this->baseUrl = 'https://bdg.wablas.com/api/v2';
-        $this->groupId = env('WABLAS_GROUP_ID', '120363365570113714'); // Set this in .env or hardcode here
+        $this->apiToken = env('WABLAS_API_TOKEN', 'xjG4dvzmFhDREvqYRAC7jjB4ZHydoaU4ki7qVkSTEHYDr8tf4ordWKULaxhO8gYl');
+        $this->baseUrl = 'https://tegal.wablas.com/api/v2';
+        $this->groupId = env('WABLAS_GROUP_ID', '120363373291153768'); // Set this in .env or hardcode here
     }
 
     /**

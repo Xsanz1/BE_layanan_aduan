@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Panel;
-
+use Illuminate\Support\Facades\Log;
 class PanelController extends Controller
 {
     /**
@@ -29,7 +29,6 @@ class PanelController extends Controller
 
         return response()->json($panels);
     }
-
     /**
      * Show the form for creating a new resource.
      */
@@ -80,6 +79,7 @@ class PanelController extends Controller
     public function listNoApp()
     {
         $data = Panel::select('id_panel', 'no_app')->get();
-        return response()->json(["datas"=> $data], 200);
+        return response()->json(["datas" => $data], 200);
     }
+    
 }
