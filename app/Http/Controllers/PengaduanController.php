@@ -36,7 +36,7 @@ class PengaduanController extends Controller
         $pengaduan = Pengaduan::with(['detailPengaduans.pju', 'detailPengaduans.panel'])
             ->whereMonth('tanggal_pengaduan', $currentMonth) // Memfilter berdasarkan bulan saat ini
             ->whereYear('tanggal_pengaduan', $currentYear)  // Memfilter berdasarkan tahun saat ini
-            ->orderBy('tanggal_pengaduan', 'desc')  // Mengurutkan berdasarkan tanggal_pengaduan terbaru
+            ->orderBy('tanggal_pengaduan', 'asc')  // Mengurutkan berdasarkan tanggal_pengaduan terbaru
             ->get();
 
         return response()->json($pengaduan, 200);
@@ -53,7 +53,16 @@ class PengaduanController extends Controller
 
         // Kelompokkan tiang berdasarkan panel
         $groupedDetails = $pengaduan->detailPengaduans->groupBy('panel_id')->map(function ($details) {
+            // Periksa jika panel ada
             $panel = $details->first()->panel;
+
+            // Jika tidak ada panel, log atau kembalikan pesan yang lebih informatif
+            if (!$panel) {
+                return [
+                    'panel_id' => null,
+                    'message' => 'Panel tidak ditemukan untuk detail ini.'
+                ];
+            }
 
             return [
                 'panel_id' => $panel->id_panel,
@@ -90,29 +99,34 @@ class PengaduanController extends Controller
                 'pilot_lamp' => $panel->pilot_lamp,
                 'tiangs' => $details->map(function ($detail) {
                     return [
-                        'id_pju' => $detail->pju->id_pju,
+                        'id_pju' => $detail->pju_id,
                         'panel_id' => $detail->panel_id,
-                        'lapisan' => $detail->pju->lapisan,
-                        'no_tiang_lama' => $detail->pju->no_tiang_lama,
-                        'no_tiang_baru' => $detail->pju->no_tiang_baru,
-                        'nama_jalan' => $detail->pju->nama_jalan,
-                        'kecamatan' => $detail->pju->kecamatan,
-                        'tinggi_tiang' => $detail->pju->tinggi_tiang,
-                        'jenis_tiang' => $detail->pju->jenis_tiang,
-                        'spesifikasi_tiang' => $detail->pju->spesifikasi_tiang,
-                        'daya_lampu' => $detail->pju->daya_lampu,
-                        'status_jalan' => $detail->pju->status_jalan,
-                        'tanggal_pemasangan_tiang' => $detail->pju->tanggal_pemasangan_tiang,
-                        'tanggal_pesangan_lampu' => $detail->pju->tanggal_pemasangan_lampu,
-                        'lifetime_tiang' => $detail->pju->lifetime_tiang,
-                        'lifetime_lampu' => $detail->pju->lifetime_lampu,
-                        'rekomendasi_tiang' => $detail->pju->rekomendasi_tiang,
-                        'rekomendasi_lampu' => $detail->pju->rekomendasi_lampu,
-                        'longitude' => $detail->pju->longitude,
-                        'latitude' => $detail->pju->latitude,
+                        'lapisan' => $detail->pju->lapisan ?? null, // Gunakan null jika pju tidak ada
+                        'no_tiang_lama' => $detail->pju->no_tiang_lama ?? null,
+                        'no_tiang_baru' => $detail->pju->no_tiang_baru ?? null,
+                        'nama_jalan' => $detail->pju->nama_jalan ?? null,
+                        'kecamatan' => $detail->pju->kecamatan ?? null,
+                        'tinggi_tiang' => $detail->pju->tinggi_tiang ?? null,
+                        'jenis_tiang' => $detail->pju->jenis_tiang ?? null,
+                        'spesifikasi_tiang' => $detail->pju->spesifikasi_tiang ?? null,
+                        'daya_lampu' => $detail->pju->daya_lampu ?? null,
+                        'status_jalan' => $detail->pju->status_jalan ?? null,
+                        'tanggal_pemasangan_tiang' => $detail->pju->tanggal_pemasangan_tiang ?? null,
+                        'tanggal_pesangan_lampu' => $detail->pju->tanggal_pemasangan_lampu ?? null,
+                        'lifetime_tiang' => $detail->pju->lifetime_tiang ?? null,
+                        'lifetime_lampu' => $detail->pju->lifetime_lampu ?? null,
+                        'rekomendasi_tiang' => $detail->pju->rekomendasi_tiang ?? null,
+                        'rekomendasi_lampu' => $detail->pju->rekomendasi_lampu ?? null,
+                        'longitude' => $detail->pju->longitude ?? null,
+                        'latitude' => $detail->pju->latitude ?? null,
                     ];
                 })
             ];
+        });
+
+        // Filter untuk menghapus elemen null
+        $groupedDetails = $groupedDetails->filter(function ($value) {
+            return $value !== null;
         });
 
         return response()->json([
@@ -129,10 +143,10 @@ class PengaduanController extends Controller
                 'keterangan_masalah' => $pengaduan->keterangan_masalah,
                 'foto_penanganan' => $pengaduan->foto_penanganan,
                 'uraian_masalah' => $pengaduan->uraian_masalah,
-                'jam_penyelesaian' => $pengaduan->jam_penyelesaian,
-                'tanggal_penyelesaian' => $pengaduan->tanggal_penyelesaian,
-                'durasi_penyelesaian' => $pengaduan->durasi_penyelesaian,
-                'penyelesaian_masalah' => $pengaduan->penyelesaian_masalah,
+                'jam_penanganan' => $pengaduan->jam_penanganan,
+                'tanggal_penanganan' => $pengaduan->tanggal_penanganan,
+                'durasi_penanganan' => $pengaduan->durasi_penanganan,
+                'penanganan_masalah' => $pengaduan->penanganan_masalah,
                 'status' => $pengaduan->status,
                 'detail_pengaduans' => $groupedDetails->values()
             ]
@@ -148,6 +162,7 @@ class PengaduanController extends Controller
             'kondisi_masalah' => 'required|string',
             'panel_id' => 'required|integer|exists:data_panels,id_panel', // Panel wajib dipilih
             'lokasi' => 'required|string',
+            'jam_aduan' => 'required|date_format:H:i',
             'foto_pengaduan' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
             'keterangan_masalah' => 'required|string',
         ]);
@@ -200,7 +215,8 @@ class PengaduanController extends Controller
 
         // Set timezone dan format waktu
         $timezone = 'Asia/Jakarta';
-        $jamPengaduan = Carbon::now($timezone)->format('H:i');
+        $jamAduan = Carbon::now($timezone)->format('H:i');
+        $jamPenginformasian = Carbon::now($timezone)->format('H:i');
         $tanggalPengaduan = Carbon::now($timezone)->format('Y-m-d');
         $nomorPengaduan = Carbon::now($timezone)->format('Ymd') . '-' . str_pad(Pengaduan::count() + 1, 4, '0', STR_PAD_LEFT);
 
@@ -232,7 +248,8 @@ class PengaduanController extends Controller
             'lokasi' => $request->lokasi,
             'foto_pengaduan' => $fotoPath,
             'tanggal_pengaduan' => $tanggalPengaduan,
-            'jam_pengaduan' => $jamPengaduan,
+            'jam_aduan' => $jamAduan,
+            'jam_penginformasian' => $jamPenginformasian,
             'keterangan_masalah' => $request->keterangan_masalah,
             'status' => 'Pending',
         ]);
@@ -269,9 +286,24 @@ class PengaduanController extends Controller
         $message = "Nomor Pengaduan: " . $pengaduan->nomor_pengaduan . "\n";
         $message .= "Pelapor: " . $pengaduan->pelapor . "\n";
         $message .= "Kondisi Masalah: " . $pengaduan->kondisi_masalah . "\n";
+        if ($pengaduan->detailPengaduans->isNotEmpty()) {
+            foreach ($pengaduan->detailPengaduans as $detail) {
+                $message .= "Id Panel: " . ($detail->panel ? $detail->panel->panel_id : 'N/A') . "\n";
+            }
+        } else {
+            $message .= "Id Panel: N/A\n";
+        }
+        if ($pengaduan->detailPengaduans->isNotEmpty()) {
+            foreach ($pengaduan->detailPengaduans as $detail) {
+                $message .= "Id Tiang: " . ($detail->pju ? $detail->pju->pju_id : 'N/A') . "\n";
+            }
+        } else {
+            $message .= "Id Tiang: N/A\n";
+        }
         $message .= "Lokasi: " . $pengaduan->lokasi . "\n";
         $message .= "Tanggal Pengaduan: " . $pengaduan->tanggal_pengaduan . "\n";
-        $message .= "Jam Pengaduan: " . $pengaduan->jam_pengaduan . "\n";
+        $message .= "Jam Aduan: " . $pengaduan->jam_aduan . "\n";
+        $message .= "Jam Penginformasian: " . $pengaduan->jam_pengaduan . "\n";
         $message .= "Keterangan Masalah: " . $pengaduan->keterangan_masalah . "\n";
         $message .= "Status: " . $pengaduan->status . "\n";
 
@@ -284,8 +316,6 @@ class PengaduanController extends Controller
 
         return response()->json($pengaduan->load('detailPengaduans.panel', 'detailPengaduans.pju'), 200);
     }
-
-
 
     // Memperbarui pengaduan
     public function update_pengaduan(Request $request, $id_pengaduan)
@@ -306,11 +336,14 @@ class PengaduanController extends Controller
             // Validasi input
             $request->validate([
                 'uraian_masalah' => 'nullable|string',
-                'penyelesaian_masalah' => 'nullable|string',
+                'penanganan_masalah' => 'nullable|string',
                 'pencegahan_masalah' => 'nullable|string',
+                'penyelesaian_masalah' => 'nullable|string',
                 'pengelompokan_masalah' => 'nullable|string|in:Eksternal,Internal',
                 'status' => 'required|string|in:Pending,Selesai,Proses',
             ]);
+
+            Log::info("Input request: ", $request->all());
 
             // Validasi file hanya jika field file dikirimkan
             if ($request->hasFile('foto_penanganan')) {
@@ -330,8 +363,8 @@ class PengaduanController extends Controller
                 $updateData['uraian_masalah'] = $request->uraian_masalah;
             }
 
-            if ($request->filled('penyelesaian_masalah')) {
-                $updateData['penyelesaian_masalah'] = $request->penyelesaian_masalah;
+            if ($request->filled('penanganan_masalah')) {
+                $updateData['penanganan_masalah'] = $request->penanganan_masalah;
             }
 
             if ($request->filled('pencegahan_masalah')) {
@@ -340,6 +373,10 @@ class PengaduanController extends Controller
 
             if ($request->filled('pengelompokan_masalah')) {
                 $updateData['pengelompokan_masalah'] = $request->pengelompokan_masalah;
+            }
+
+            if ($request->filled('penyelesaian_masalah')) {
+                $updateData['penyelesaian_masalah'] = $request->penyelesaian_masalah;
             }
 
             // Proses upload foto jika ada
@@ -352,29 +389,29 @@ class PengaduanController extends Controller
                 Log::info("Foto berhasil diupload dengan path: " . $updateData['foto_penanganan']);
             }
 
-            // Jika status menjadi Selesai, update waktu penyelesaian
-            // Jika status menjadi Selesai, update waktu penyelesaian
+            // Jika status menjadi Selesai, update waktu penanganan
+            // Jika status menjadi Selesai, update waktu penanganan
             if ($request->status === 'Selesai') {
                 $timezone = 'Asia/Jakarta';
-                $jamPenyelesaian = Carbon::now($timezone)->format('H:i');
-                $tanggalPenyelesaian = Carbon::now($timezone)->format('Y-m-d');
+                $jampenanganan = Carbon::now($timezone)->format('H:i');
+                $tanggalpenanganan = Carbon::now($timezone)->format('Y-m-d');
 
-                $jamPengaduan = Carbon::parse($pengaduan->tanggal_pengaduan . ' ' . $pengaduan->jam_pengaduan, $timezone);
-                $jamPenyelesaianCarbon = Carbon::parse($tanggalPenyelesaian . ' ' . $jamPenyelesaian, $timezone);
-                $durasiPenyelesaian = $jamPengaduan->diff($jamPenyelesaianCarbon);
+                $jamPengaduan = Carbon::parse($pengaduan->tanggal_pengaduan . ' ' . $pengaduan->jam_aduan, $timezone);
+                $jampenangananCarbon = Carbon::parse($tanggalpenanganan . ' ' . $jampenanganan, $timezone);
+                $durasipenanganan = $jamPengaduan->diff($jampenangananCarbon);
 
                 // Mengakumulasi durasi hari menjadi jam
-                $totalJam = ($durasiPenyelesaian->d * 24) + $durasiPenyelesaian->h; // Mengubah hari menjadi jam dan menambahkannya
-                $totalMenit = $durasiPenyelesaian->i;
+                $totalJam = ($durasipenanganan->d * 24) + $durasipenanganan->h; // Mengubah hari menjadi jam dan menambahkannya
+                $totalMenit = $durasipenanganan->i;
 
                 // Format durasi dalam jam dan menit
-                $durasiPenyelesaianFormatted = sprintf('%d jam, %d menit', $totalJam, $totalMenit);
+                $durasipenangananFormatted = sprintf('%d jam, %d menit', $totalJam, $totalMenit);
 
-                $updateData['jam_penyelesaian'] = $jamPenyelesaian;
-                $updateData['tanggal_penyelesaian'] = $tanggalPenyelesaian;
-                $updateData['durasi_penyelesaian'] = $durasiPenyelesaianFormatted;
+                $updateData['jam_penyelesaian'] = $jampenanganan;
+                $updateData['tanggal_penyelesaian'] = $tanggalpenanganan;
+                $updateData['durasi_penyelesaian'] = $durasipenangananFormatted;
 
-                Log::info("Durasi penyelesaian dihitung: " . $updateData['durasi_penyelesaian']);
+                Log::info("Durasi penanganan dihitung: " . $updateData['durasi_penyelesaian']);
             }
 
             // Update data pengaduan
@@ -386,12 +423,13 @@ class PengaduanController extends Controller
 
             // Mengirim pesan ke WhatsApp setelah pengaduan dibuat
             $message = "Uraian_masalah: " . $pengaduan->uraian_masalah . "\n";
-            $message .= "Penyelesaian Masalah: " . $pengaduan->penyelesaian_masalah . "\n";
+            $message .= "penanganan Masalah: " . $pengaduan->penanganan_masalah . "\n";
             $message .= "Pencegahan Masalah: " . $pengaduan->pencegahan_masalah . "\n";
             $message .= "Pengelompokan Masalah: " . $pengaduan->pengelompokan_masalah . "\n";
-            $message .= "Tanggal Penanganan: " . $pengaduan->tanggal_penyelesaian . "\n";
-            $message .= "Jam Penyelesaian: " . $pengaduan->jam_penyelesaian . "\n";
-            $message .= "Durasi Penyelesaian: " . $pengaduan->durasi_penyelesaian . "\n";
+            $message .= "Tanggal Penanganan: " . $pengaduan->tanggal_penanganan . "\n";
+            $message .= "Jam penanganan: " . $pengaduan->jam_penanganan . "\n";
+            $message .= "Durasi penanganan: " . $pengaduan->durasi_penanganan . "\n";
+            $message .= "Status: " . $pengaduan->status . "\n";
 
             if ($pengaduan->foto_penanganan) {
                 $fotoUrl = url('uploads/' . $pengaduan->foto_penanganan); // Menyusun URL gambar
@@ -480,7 +518,7 @@ class PengaduanController extends Controller
             $data['total_monthly_counts'][$monthIndex]++;
 
             // Count unresolved complaints (e.g., statuses 'Pending' or 'In Progress')
-            if (in_array($item->status, ['Pending', 'In Progress'])) {
+            if (in_array($item->status, ['Selesai', 'In Progress'])) {
                 $data['unresolved_monthly_counts'][$monthIndex]++;
             }
         }
@@ -488,28 +526,35 @@ class PengaduanController extends Controller
         return response()->json($data);
     }
 
-    public function export_pengaduan()
+    public function exportExcel(Request $request)
     {
-        try {
-            Log::info("Memulai proses ekspor...");
+        $month = $request->query('month');
+        $year = $request->query('year');
 
-            // Ambil semua data pengaduan
-            $pengaduans = Pengaduan::with(['detailPengaduans.panel', 'detailPengaduans.pju'])->get();
-
-            // Log jumlah data yang ditemukan
-            Log::info("Jumlah data pengaduan ditemukan: " . $pengaduans->count());
-
-            if ($pengaduans->isEmpty()) {
-                return response()->json(['message' => 'Pengaduan tidak ditemukan.'], 404);
-            }
-
-            $fileName = 'pengaduan_' . now()->format('Ymd_His') . '.xlsx';
-            return Excel::download(new PengaduanExport, $fileName);
-        } catch (Throwable $e) {
-            Log::error('Error saat ekspor data: ' . $e->getMessage());
-            return response()->json(['message' => 'Gagal mengekspor data.'], 500);
+        // Validate month and year
+        if (!$month || !$year) {
+            return response()->json(['error' => 'Bulan dan tahun tidak valid'], 400);
         }
+
+        // Validate month and year format
+        if (!is_numeric($month) || !is_numeric($year) || $month < 1 || $month > 12 || $year < 2000) {
+            return response()->json(['error' => 'Bulan atau tahun tidak valid'], 400);
+        }
+
+        // Filter complaints based on month and year
+        $pengaduans = Pengaduan::whereMonth('tanggal_pengaduan', $month)
+            ->whereYear('tanggal_pengaduan', $year)
+            ->get();
+
+        // Check if there are any complaints to export
+        if ($pengaduans->isEmpty()) {
+            return response()->json(['message' => 'Tidak ada pengaduan untuk bulan dan tahun ini'], 404);
+        }
+
+        // Send data to export
+        return Excel::download(new PengaduanExport($pengaduans), 'pengaduan.xlsx');
     }
+
     public function import_pengaduan(Request $request)
     {
         $request->validate([
@@ -574,38 +619,116 @@ class PengaduanController extends Controller
         $detailPengaduans = DetailPengaduan::all(); // Mengambil semua data detail pengaduan
 
         // Pastikan kita punya data untuk diproses
-        if ($pengaduans->isEmpty() || $detailPengaduans->isEmpty()) {
-            return response()->json(['message' => 'Tidak ada data pengaduan atau penyelesaian'], 400);
+        if ($pengaduans->isEmpty()) {
+            return response()->json(['message' => 'Tidak ada data pengaduan'], 400);
         }
 
         $phpWord = new PhpWord();
 
-        // Menambahkan bagian pertama (nomor laporan dan panel nomor)
-        $section = $phpWord->addSection();
-        $section->addText("Nomor Laporan: " . $pengaduans->first()->nomor_pengaduan); // Mengambil nomor laporan pertama
-        $section->addText("Panel Nomor: " . $detailPengaduans->first()->panel_id); // Mengambil panel_id pertama
+        // Mengatur font default menjadi Times New Roman
+        $phpWord->setDefaultFontName('Times New Roman');
+        $phpWord->setDefaultFontSize(13); // Ukuran font default
 
-        // Menambahkan bagian tabel (Pengaduan dan Penyelesaian)
-        $section->addTextBreak(1); // Memberikan jarak antara teks dan tabel
-        $table = $section->addTable();
+        // Mengulangi setiap pengaduan untuk membuat laporan
+        foreach ($pengaduans as $index => $pengaduan) {
+            // Buat section baru setiap dua pengaduan
+            if ($index % 2 == 0) {
+                $section = $phpWord->addSection();
 
-        // Menambahkan header tabel
-        $table->addRow();
-        $table->addCell(3000)->addText("Pengaduan");
-        $table->addCell(3000)->addText("Penyelesaian");
+                // Menambahkan paragraf style untuk center
+                $phpWord->addParagraphStyle('centered', ['align' => 'center']);
 
-        // Loop untuk menambahkan pengaduan dan penyelesaian ke tabel
-        foreach ($pengaduans as $pengaduan) {
-            // Mencari penyelesaian terkait berdasarkan ID pengaduan
-            $penyelesaian = $detailPengaduans->firstWhere('pengaduan_id', $pengaduan->id_pengaduan); // Sesuaikan 'pengaduan_id' dengan kolom yang sesuai
+                // Menambahkan bagian judul dan memusatkan teks
+                $titleStyle = ['bold' => true, 'size' => 16];
+                $section->addText("Dokumentasi Pengaduan dan penanganan", $titleStyle, 'centered');
+                $section->addTextBreak(1); // Menambahkan jarak setelah judul
+            }
 
+            // Tambahkan garis pembatas di setiap awal pengaduan
+            $section->addLine([
+                'weight' => 2, // Ketebalan garis
+                'width' => \PhpOffice\PhpWord\Shared\Converter::cmToTwip(20), // Lebar garis dalam cm (20 cm = halaman penuh)
+                'height' => 0, // Tinggi garis tetap 0 untuk horizontal
+                'color' => '000000', // Warna hitam
+                'align' => 'center', // Pastikan garis tetap di tengah
+            ]);
+
+            $section->addText("Nomor Laporan: " . $pengaduan->nomor_pengaduan); // Mengambil nomor laporan
+            $panel = $detailPengaduans->firstWhere('pengaduan_id', $pengaduan->id_pengaduan);
+            $section->addText("Panel Nomor: " . ($panel ? $panel->panel_id : 'Tidak ada panel')); // Mengambil panel_id jika ada
+
+            // Menambahkan tabel untuk pengaduan dan penanganan
+            $section->addTextBreak(1); // Memberikan jarak antara teks dan tabel
+            $table = $section->addTable(['borderSize' => 12]);
+
+            // Menambahkan header tabel dengan teks yang dipusatkan secara horizontal dan vertikal
             $table->addRow();
-            $table->addCell(3000)->addText($pengaduan->deskripsi_pengaduan); // Ambil deskripsi pengaduan
-            $table->addCell(3000)->addText($penyelesaian ? $penyelesaian->deskripsi_penyelesaian : 'Belum ada penyelesaian'); // Ambil deskripsi penyelesaian
+            $table->addCell(6000, [
+                'valign' => 'center',  // Vertikal tengah
+                'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER, // Horizontal tengah
+            ])->addText("Pengaduan", [
+                'bold' => true,
+                'align' => 'center', // Teks di tengah
+            ], [
+                'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER,
+            ]);
+
+            $table->addCell(6000, [
+                'valign' => 'center',  // Vertikal tengah
+                'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER, // Horizontal tengah
+            ])->addText("penanganan", [
+                'bold' => true,
+                'align' => 'center', // Teks di tengah
+            ], [
+                'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER,
+            ]);
+
+            // Menambahkan gambar di bawah deskripsi
+            $table->addRow();
+            $cell1 = $table->addCell(6000, ['valign' => 'center', 'align' => 'center']);
+            if ($pengaduan->foto_pengaduan) {
+                $imagePath = public_path('storage/' . $pengaduan->foto_pengaduan);
+                if (file_exists($imagePath)) {
+                    $cell1->addImage($imagePath, [
+                        'width' => 100,
+                        'height' => 100,
+                        'wrappingStyle' => 'inline',
+                        'align' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER
+                    ]);
+                } else {
+                    $cell1->addText('Gambar pengaduan tidak ditemukan');
+                }
+            } else {
+                $cell1->addText('Tidak ada gambar pengaduan');
+            }
+
+            $cell2 = $table->addCell(6000);
+            if ($pengaduan->foto_penanganan) {
+                $imagePath = public_path('storage/' . $pengaduan->foto_penanganan);
+                if (file_exists($imagePath)) {
+                    $cell2->addImage($imagePath, [
+                        'width' => 100,
+                        'height' => 100,
+                        'wrappingStyle' => 'inline',
+                        'align' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER
+                    ]);
+                } else {
+                    $cell2->addText('Gambar penanganan tidak ditemukan');
+                }
+            } else {
+                $cell2->addText('Tidak ada gambar penanganan');
+            }
+
+            $section->addTextBreak(2);
+
+            // Tambahkan page break setelah setiap 2 pengaduan
+            if (($index + 1) % 2 == 0) {
+                $section->addPageBreak();
+            }
         }
 
         // Menyimpan file Word
-        $fileName = 'Laporan_Pengaduan_' . '.docx';
+        $fileName = 'Laporan_Pengaduan_' . date('Y-m-d') . '.docx';
         $filePath = storage_path('app/public/' . $fileName);
         $phpWord->save($filePath, 'Word2007');
 
@@ -644,5 +767,9 @@ class PengaduanController extends Controller
             Log::error('Error saat mengambil pengaduan: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+    public function exportTemplate()
+    {
+        return Excel::download(new PengaduanExport, 'template_pengaduan.xlsx');
     }
 }

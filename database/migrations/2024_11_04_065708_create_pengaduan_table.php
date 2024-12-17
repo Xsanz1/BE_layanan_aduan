@@ -21,7 +21,8 @@ return new class extends Migration
             $table->string('lokasi')->nullable();
             $table->string('foto_pengaduan')->nullable();
             $table->date('tanggal_pengaduan')->nullable();
-            $table->string('jam_pengaduan')->nullable();
+            $table->string('jam_aduan')->nullable();
+            $table->string('jam_penginformasian')->nullable();
             $table->string('keterangan_masalah')->nullable();
             $table->string('foto_penanganan')->nullable();
             $table->string('uraian_masalah')->nullable();

@@ -90,9 +90,6 @@ class UserController extends Controller
             return response()->json(['message' => 'user tidak ditemukan.'], 404); // Not found response
         }
         
-        $fotoPath = $user->foto;
-        unlink('storage/'.$fotoPath);
-
         $user->delete();
         return response()->json(['message' => 'user berhasil dihapus.']);
     }

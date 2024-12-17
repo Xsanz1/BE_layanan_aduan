@@ -27,7 +27,7 @@ class AuthController extends Controller
 
         // Validate user and password
         if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json(['error' => 'Password Salah'], 401);
+            return response()->json(['error' => 'Username Atau Password Salah'], 401);
         }
 
         // Create a token for the user

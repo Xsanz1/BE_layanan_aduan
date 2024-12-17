@@ -60,17 +60,7 @@ class PJUController extends Controller
         $data = PJU::select('id_pju', 'no_tiang_baru')->get();
         return response()->json(["datas" => $data], 200);
     }
-
-    public function importPju(Request $request)
-    {
-        $request->validate([
-            'file' => 'required|mimes:xlsx,xls,csv',
-        ]);
-
-        Excel::import(new PjuImport, $request->file('file'));
-
-        return response()->json(['sukses menambahkan data'], 200);
-    }
+    
     public function getPjuByPanel($panelId)
     {
         Log::info("Fetching PJU for panel ID: {$panelId}");

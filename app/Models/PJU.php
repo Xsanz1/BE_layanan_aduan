@@ -39,5 +39,4 @@ class PJU extends Model
     {
         return $this->belongsTo(Panel::class, 'panel_id', 'id_panel');
     }
-    
 }
